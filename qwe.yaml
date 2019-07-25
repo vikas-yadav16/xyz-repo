@@ -1,0 +1,67 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  
+  SNSName:
+    Description : Name of the SNS,
+    Type : String
+    MinLength : 1
+
+  Email:
+    Type: String
+    Description: The email address of the first subscriber of the topic.
+    MinLength : 1
+
+Resources:
+
+  timeEvent:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Event to trigger a lambda function at 10AM
+      ScheduleExpression: cron(30 4 * * ? *)
+  
+  SNSEmailTopic :
+    Type : AWS::SNS::Topic
+    Properties :
+      DisplayName : !Ref SNSName
+      TopicName : !Ref SNSName
+    DependsOn :
+      - timeEvent
+  
+  SNSEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Endpoint:
+        !Ref Email
+      Protocol: email
+      TopicArn:
+        !Ref SNSEmailTopic
+    DependsOn:
+      - SNSEmailTopic
+  
+  
+  MailerLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code: mailerLambda.zip
+      Description: The Lambda Function which sends a hello world email to all subscribers
+        of the topic.
+      Environment:
+        Variables:
+          SNS_ARN:
+            - !Ref SNSEmailTopic
+        FunctionName: MailerLambda
+        Handler: lambda_email.lambda_handler
+        Runtime: python3.7
+        Role : arn:aws:iam::488599217855:role/full_access
+    DependsOn:
+      - SNSEmailTopic
+  
+  LambdaInvokePermission:
+    Type : AWS::Lambda::Permission
+    Properties :
+      Action: lambda:InvokeFunction
+      FunctionName : !Ref MailerLambda
+      Principal : events.amazonaws.com
+      SourceARN : !Ref timeEvent
+...
